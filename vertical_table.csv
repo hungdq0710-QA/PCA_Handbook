@@ -1,0 +1,54 @@
+Tester Site,Customer,Special Note,Ngày Cập Nhật
+TI-DLP,TI-DLP,"1. Controll Alignment <=0.4 mil, planarity <=1 mil for all card.
+2. Run 1st PCA test ( Leak/Leak OT, PA, WC, TILT, Cres).
+3.Check IDRes for all PWR on PCB.
+5. Pass card to OQA to measure optical planarity.
+7. Retest leak + PA
+8. Controll tip dia 0.5~0.8 mil (accept 20% tip dia 0.5mils only).
+9. Perform tip conditioning follow rule for pointed probe.
+10. Need control 85% OVL passed at 1st touch (0.01mils OD) before testing P&A.""",2026-10-03
+Maxim,Maxim,"1. Controll tip dia 0.5~0.8 mil ( Pointed).
+2. Perform tip conditioning follow rule for pointed/ offset pointed/ Wedge tip shape.""",2026-10-03
+NXP/DIR 93KDD,NXP/DIR 93KDD,After complete final PCA -> Retest planarity + Cres 3 times ( Delay 1 shift and Keep card in PCA room after each times retest),2026-10-03
+RENESAS (PRVX card- Small PCB),RENESAS (PRVX card- Small PCB),"1. Test leak at 10V + control leakage for IO pin: <=1na; Bussprobes <=5na.
+2. Re-test leak before ship ( At 10V).
+3. Measure low leak on ADCMT5451 machine.""",2026-10-03
+Avago/Broadcom ( BECU),Avago/Broadcom ( BECU),"1. OQA will take care manual wire check ( PCA do not run WC).
+2. DO NOT perform tip conditioning after PCA ( This kind of card using BECU probe material).""",2026-10-03
+Microchip,Microchip,"1. Do fine leveling before PCA and write note """" Fine leveling done"""" in PCA test result if have FL card.
+2. If CA DOC require BC then we will run PCA at 0.05mil OD and standard OD follow DOC-000209.
+3. Controll tip dia follow CA DOC.
+4. Perform tip conditioning for pointed tip as DOC-000209 require.""",2026-10-03
+Medtronic,Medtronic,"1. After complete PCA testing, PCA spec in outgoing test result must follow PRVX setting sheet in CTP-000061-01 and upload on portal.   
+2. If card use jumper to test then need to add comments """"Use jumper to test"""" in remarks column.                """,2026-10-03
+AMD,AMD,"1. Perform at least 1000TD on check plate before complete PCA and put comment in test result.
+2. Test thermal IC after complete PCA if card have this IC.""",2026-10-03
+Hi-silicon,Hi-silicon,"f card failed Cres then we need to perform manual measurement random for 10 pins for card ship to TW:
+- For vertical card: Need measure resistor from EC to BGA; EC to gold pad; EC to probe tip.
+- For canti card: Need measure resistor from EC to TRACE; EC to probe tip.
+For card ship to other site or customer, we will meausre for only 3 pins as we are applying.
+- If a card is failed Cres due to high Cres of customer's PCB, SV can bypass and note in COC to ship card.""",2026-10-03
+ST Argate,ST Argate,Showing 100% Cres data into PCA test result for ST Argate customer PCX-005642 card which ship to TW,2026-10-03
+IMC/INTEL/Maxlinear/ALCHIP,IMC/INTEL/Maxlinear/ALCHIP,Need to check EEPROM IC before completing PCA if any (if it exists on card).,2026-10-03
+NOVATEK,NOVATEK,"1. Add-ins more info into PCA Ref file and test result for Novatek customer
+2. Declare Capacitor value at Remarks in Ref file for all Novatek order""",2026-10-03
+NVIDIA,NVIDIA,"After complete final PCA -> Need run Cres for all I/O pin 3 times@Wafer OD ( Test 1st Cres  -> TD 200 times at wafer OD  -> Test 2nd Cres  ->  TD 200 times at wafer OD  -> Test 3rd Cres) + Repeat Alignment 3 times after alignment passed , Compare Cres + alignment repeat sent the result to a.Tiến  review before ship",2026-10-03
+GENERAL NOTES,GENERAL NOTES,"Perform tip conditioning for pointed/offset pointed/Wedge probe tip card ( Except BECU probe) follow DOC-000209.	
+Controll tip dia follow special notes on portal, if don't have any special notes for tip dia on portal then controll follow CA DOC.	
+If card requires BC ( Bias Compensation) then we need to run PCA follow rule for this kind of card in DOC-000209.	
+Refer DOC-000209 for Vision OT, max OD in ref.file	
+Change format of PCA test result from WK1 to XLS before upload on portal.	
+For MEM, Smart touch probe card are built with pointed probe -> Make tip dia radius after complete PCA	
+For Vert card ship to SV China, need fill form SV SZ China, test house SPIL.	
+For MST card, after completed PCA pass card to ST fill silicon.	
+For MEM PHX run on UST, only run Cres to record, not show in test result upload on portal.	
+Don't show tip diameter in test result	
+Declare correct value Capacitor at Remarks in Ref file for all Novatek and other customer for new cards.	
+For PB card (Not include canti card): Reduce voltage =1/2 voltage on CA DOC to run planarity + run full planarity by Raised pin or GF pin.	
+Need measure IR CAP and record (save) measurement result in share drive for QTI and NOVATEK customer.	
+Run BCF  card new device/new order for customer TI  USE MEM PROBES test on PB , need record result  and send result to Mr.Tien review.	
+FOR TRIO CARD TEST ALIGNMENT AT 0.01 MIL OD, ALSO INCLUDE MEM, SMART TOUCH…	
+""Touch down for MEM product: @testing OD if layout show OD <=100um and @(testing OD-1mils) if layout show >100um.
+*TD 10K for new/re-oder/rebuild MHM (replace all new probes).
+*TD 1K for repair/replace partial probes.""	
+Performe 10K TDs for Trio MLC/MLO card @1st PCA for OQA checking probe mark.",2026-10-03
