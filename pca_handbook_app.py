@@ -78,24 +78,19 @@ def render_file_preview_section(file_path, row, section_name, idx):
     
     if os.path.exists(file_path):
         if file_ext == 'pdf':
-            st.markdown(f"📄 **Xem trước trực tiếp tài liệu PDF: {row['File Name']}**")
+            st.markdown(f"📄 **Tài liệu PDF:** `{row['File Name']}`")
             
-            try:
-                with open(file_path, "rb") as f:
-                    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-                
-                # Nhúng trực tiếp bằng thẻ embed của HTML5, hỗ trợ trình đọc PDF tích hợp của Chrome/Edge
-                pdf_display = f'''
-                <embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700px" type="application/pdf">
-                '''
-                st.markdown(pdf_display, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.warning("⚠️ Không thể render trực tiếp khung PDF trên trình duyệt này.")
-                
-            # Cung cấp thêm nút tải dự phòng bên dưới
             with open(file_path, "rb") as f:
                 pdf_bytes = f.read()
+            
+            # Tạo nút mở trực tiếp PDF ở tab mới của trình duyệt (tránh bị chặn khung nhúng bên trong app)
+            b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+            pdf_href = f'<a href="data:application/pdf;base64,{b64_pdf}" target="_blank" style="text-decoration: none;"><button style="background-color: #00d2ff; color: #0f172a; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">🚀 Mở xem trực tiếp PDF ở Tab mới</button></a>'
+            st.markdown(pdf_href, unsafe_allow_html=True)
+            
+            st.markdown("") # Khoảng cách nhỏ
+            
+            # Nút tải xuống dự phòng
             st.download_button(
                 label="⬇ Tải file PDF về máy",
                 data=pdf_bytes,
