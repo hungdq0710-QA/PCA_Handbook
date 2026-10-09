@@ -73,8 +73,6 @@ def save_table_data(filename, df):
 # ---------------------------------------------------------
 # HÀM HIỂN THỊ TRỰC TIẾP FILE PDF TRÊN STREAMLIT
 # ---------------------------------------------------------
-from streamlit_pdf_viewer import pdf_viewer
-
 def render_file_preview_section(file_path, row, section_name, idx):
     file_ext = str(row['File Type']).lower()
     
@@ -82,21 +80,29 @@ def render_file_preview_section(file_path, row, section_name, idx):
         if file_ext == 'pdf':
             st.markdown(f"📄 **Xem trước trực tiếp tài liệu PDF: {row['File Name']}**")
             
-            # Sử dụng streamlit-pdf-viewer để render trực tiếp PDF lên app mà không bị trình duyệt chặn
             try:
-                pdf_viewer(file_path, width=700, height=800, key=f"pdf_view_{section_name}_{idx}")
-            except Exception as e:
-                # Fallback nếu máy không load được thư viện
-                st.warning(("Không thể render trực tiếp khung PDF. Vui lòng sử dụng nút tải bên dưới."))
                 with open(file_path, "rb") as f:
-                    pdf_bytes = f.read()
-                st.download_button(
-                    label="⬇ Tải file PDF về máy",
-                    data=pdf_bytes,
-                    file_name=row['File Name'],
-                    mime="application/pdf",
-                    key=f"fallback_dl_{section_name}_{idx}"
-                )
+                    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+                
+                # Nhúng trực tiếp bằng thẻ embed của HTML5, hỗ trợ trình đọc PDF tích hợp của Chrome/Edge
+                pdf_display = f'''
+                <embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700px" type="application/pdf">
+                '''
+                st.markdown(pdf_display, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.warning("⚠️ Không thể render trực tiếp khung PDF trên trình duyệt này.")
+                
+            # Cung cấp thêm nút tải dự phòng bên dưới
+            with open(file_path, "rb") as f:
+                pdf_bytes = f.read()
+            st.download_button(
+                label="⬇ Tải file PDF về máy",
+                data=pdf_bytes,
+                file_name=row['File Name'],
+                mime="application/pdf",
+                key=f"fallback_dl_{section_name}_{idx}"
+            )
                 
         elif file_ext in ['png', 'jpg', 'jpeg']:
             st.image(file_path, caption=row['File Name'], use_container_width=True)
