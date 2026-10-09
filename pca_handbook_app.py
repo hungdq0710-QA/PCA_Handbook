@@ -73,29 +73,30 @@ def save_table_data(filename, df):
 # ---------------------------------------------------------
 # HÀM HIỂN THỊ TRỰC TIẾP FILE PDF TRÊN STREAMLIT
 # ---------------------------------------------------------
+from streamlit_pdf_viewer import pdf_viewer
+
 def render_file_preview_section(file_path, row, section_name, idx):
     file_ext = str(row['File Type']).lower()
     
     if os.path.exists(file_path):
         if file_ext == 'pdf':
-            st.info(f"📄 Tài liệu PDF: **{row['File Name']}**")
+            st.markdown(f"📄 **Xem trước trực tiếp tài liệu PDF: {row['File Name']}**")
             
-            # Đọc file dưới dạng binary để truyền vào nút tải/mở
-            with open(file_path, "rb") as f:
-                pdf_bytes = f.read()
-            
-            # Sử dụng st.download_button với mime type chuẩn xác để máy nào cũng mở được trơn tru
-            col_b1, col_b2 = st.columns([1, 3])
-            with col_b1:
+            # Sử dụng streamlit-pdf-viewer để render trực tiếp PDF lên app mà không bị trình duyệt chặn
+            try:
+                pdf_viewer(file_path, width=700, height=800, key=f"pdf_view_{section_name}_{idx}")
+            except Exception as e:
+                # Fallback nếu máy không load được thư viện
+                st.warning(("Không thể render trực tiếp khung PDF. Vui lòng sử dụng nút tải bên dưới."))
+                with open(file_path, "rb") as f:
+                    pdf_bytes = f.read()
                 st.download_button(
-                    label="📖 Mở & Tải PDF",
+                    label="⬇ Tải file PDF về máy",
                     data=pdf_bytes,
                     file_name=row['File Name'],
                     mime="application/pdf",
-                    key=f"safe_pdf_{section_name}_{idx}"
+                    key=f"fallback_dl_{section_name}_{idx}"
                 )
-            with col_b2:
-                st.caption("💡 Nhấn nút để trình duyệt tự động mở hoặc tải file PDF xuống máy để xem chi tiết.")
                 
         elif file_ext in ['png', 'jpg', 'jpeg']:
             st.image(file_path, caption=row['File Name'], use_container_width=True)
@@ -113,9 +114,9 @@ def render_file_preview_section(file_path, row, section_name, idx):
                 content = f.read()
             st.text_area("Nội dung file:", content, height=250, key=f"txt_content_{section_name}_{idx}")
         else:
-            st.warning("⚠️ Định dạng file này không hỗ trợ xem trước trực tiếp trên web.")
+            st.warning("⚠️ Định dạng file này không hỗ trợ xem trước trực tiếp.")
     else:
-        st.error("❌ Không tìm thấy file vật lý trên máy này. Vui lòng kiểm tra lại quá trình đồng bộ thư mục.")
+        st.error("❌ Không tìm thấy file vật lý trên máy này.")
 
 # ---------------------------------------------------------
 # HÀM QUẢN LÝ THƯ VIỆN TÀI LIỆU (DOCUMENT LIBRARY + PREVIEW)
@@ -127,7 +128,6 @@ def render_doc_library(section_name):
     os.makedirs(upload_dir, exist_ok=True)
     meta_csv = f"metadata_{section_name.lower()}.csv"
     
-    # Khởi tạo hoặc load metadata
     if os.path.exists(meta_csv):
         try:
             df_meta = pd.read_csv(meta_csv)
@@ -184,7 +184,6 @@ def render_doc_library(section_name):
                     file_path = os.path.join(upload_dir, row['File Name'])
                     file_ext = str(row['File Type']).lower()
                     
-                    # Nút bấm Xem trước nếu là PDF hoặc Ảnh
                     if file_ext in ['pdf', 'png', 'jpg', 'jpeg']:
                         if st.button("👁 Xem", key=f"preview_{section_name}_{idx}"):
                             st.session_state[f"show_preview_{section_name}_{idx}"] = not st.session_state.get(f"show_preview_{section_name}_{idx}", False)
@@ -206,13 +205,10 @@ def render_doc_library(section_name):
                         st.success("Đã xóa file thành công!")
                         st.rerun()
                 
-                # Hiển thị nội dung xem trước trực tiếp khi người dùng bấm nút "Xem"
+                # Gọi hàm xem trước đã được định nghĩa ở phía trên
                 if st.session_state.get(f"show_preview_{section_name}_{idx}", False):
-                    with st.expander(f"🔎 Xem trước trực tiếp: {row['File Name']}", expanded=True):
-                        if file_ext == 'pdf':
-                            show_pdf_preview(file_path)
-                        elif file_ext in ['png', 'jpg', 'jpeg']:
-                            st.image(file_path, caption=row['File Name'], use_container_width=True)
+                    with st.expander(f"🔎 Xem trước tài liệu: {row['File Name']}", expanded=True):
+                        render_file_preview_section(file_path, row, section_name, idx)
                 
                 st.divider()
 # ---------------------------------------------------------
