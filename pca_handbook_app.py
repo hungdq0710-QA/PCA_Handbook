@@ -73,14 +73,49 @@ def save_table_data(filename, df):
 # ---------------------------------------------------------
 # HÀM HIỂN THỊ TRỰC TIẾP FILE PDF TRÊN STREAMLIT
 # ---------------------------------------------------------
-def show_pdf_preview(file_path):
-    try:
-        with open(file_path, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
-        st.markdown(pdf_display, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Không thể hiển thị file PDF: {e}")
+def render_file_preview_section(file_path, row, section_name, idx):
+    file_ext = str(row['File Type']).lower()
+    
+    if os.path.exists(file_path):
+        if file_ext == 'pdf':
+            st.info(f"📄 Tài liệu PDF: **{row['File Name']}**")
+            
+            # Đọc file dưới dạng binary để truyền vào nút tải/mở
+            with open(file_path, "rb") as f:
+                pdf_bytes = f.read()
+            
+            # Sử dụng st.download_button với mime type chuẩn xác để máy nào cũng mở được trơn tru
+            col_b1, col_b2 = st.columns([1, 3])
+            with col_b1:
+                st.download_button(
+                    label="📖 Mở & Tải PDF",
+                    data=pdf_bytes,
+                    file_name=row['File Name'],
+                    mime="application/pdf",
+                    key=f"safe_pdf_{section_name}_{idx}"
+                )
+            with col_b2:
+                st.caption("💡 Nhấn nút để trình duyệt tự động mở hoặc tải file PDF xuống máy để xem chi tiết.")
+                
+        elif file_ext in ['png', 'jpg', 'jpeg']:
+            st.image(file_path, caption=row['File Name'], use_container_width=True)
+            
+        elif file_ext in ['xlsx', 'xls']:
+            try:
+                df_excel = pd.read_excel(file_path)
+                st.markdown(f"**📊 Xem trước dữ liệu Excel:**")
+                st.dataframe(df_excel, use_container_width=True, height=300)
+            except Exception as e:
+                st.error(f"Không thể đọc file Excel: {e}")
+                
+        elif file_ext in ['txt', 'csv']:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            st.text_area("Nội dung file:", content, height=250, key=f"txt_content_{section_name}_{idx}")
+        else:
+            st.warning("⚠️ Định dạng file này không hỗ trợ xem trước trực tiếp trên web.")
+    else:
+        st.error("❌ Không tìm thấy file vật lý trên máy này. Vui lòng kiểm tra lại quá trình đồng bộ thư mục.")
 
 # ---------------------------------------------------------
 # HÀM QUẢN LÝ THƯ VIỆN TÀI LIỆU (DOCUMENT LIBRARY + PREVIEW)
