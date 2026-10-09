@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
+import base64
 from datetime import datetime
 
 st.set_page_config(
-    page_title="PCA Technical Handbook",
+    page_title="PCA Handbook",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -38,7 +39,6 @@ st.markdown("""
         color: #f8fafc !important;
         font-weight: 500;
     }
-    /* Style cho kết quả tìm kiếm nổi bật màu xanh lá cây dạ quang */
     .neon-highlight {
         background-color: rgba(0, 255, 102, 0.15);
         border-left: 5px solid #00FF66;
@@ -51,26 +51,135 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
 # ---------------------------------------------------------
-# HÀM HỖ TRỢ QUẢN LÝ BẢNG DỮ LIỆU CSV CHO SPECIAL NOTE
+# HÀM HỖ TRỢ QUẢN LÝ BẢNG DỮ LIỆU CSV
 # ---------------------------------------------------------
 def load_table_data(filename, default_data):
     if os.path.exists(filename):
         try:
             df = pd.read_csv(filename)
-            expected_cols = ["Tester Site", "Customer", "Special Note", "Ngày Cập Nhật"]
-            if all(col in df.columns for col in expected_cols):
+            if not df.empty:
                 return df
         except Exception:
             pass
-    # Nếu chưa có file hoặc lỗi, tạo file mặc định
-    df_default = pd.DataFrame(default_data, columns=["Tester Site", "Customer", "Special Note", "Ngày Cập Nhật"])
+    df_default = pd.DataFrame(default_data)
     df_default.to_csv(filename, index=False)
     return df_default
 
 def save_table_data(filename, df):
     df.to_csv(filename, index=False)
 
+# ---------------------------------------------------------
+# HÀM HIỂN THỊ TRỰC TIẾP FILE PDF TRÊN STREAMLIT
+# ---------------------------------------------------------
+def show_pdf_preview(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Không thể hiển thị file PDF: {e}")
+
+# ---------------------------------------------------------
+# HÀM QUẢN LÝ THƯ VIỆN TÀI LIỆU (DOCUMENT LIBRARY + PREVIEW)
+# ---------------------------------------------------------
+def render_doc_library(section_name):
+    st.markdown(f'<div class="main-header">Document Library: {section_name}</div>', unsafe_allow_html=True)
+    
+    upload_dir = f"uploads_{section_name.lower()}"
+    os.makedirs(upload_dir, exist_ok=True)
+    meta_csv = f"metadata_{section_name.lower()}.csv"
+    
+    # Khởi tạo hoặc load metadata
+    if os.path.exists(meta_csv):
+        try:
+            df_meta = pd.read_csv(meta_csv)
+        except Exception:
+            df_meta = pd.DataFrame(columns=["File Name", "Original Name", "Uploader", "Upload Date", "Description", "File Type"])
+    else:
+        df_meta = pd.DataFrame(columns=["File Name", "Original Name", "Uploader", "Upload Date", "Description", "File Type"])
+        
+    # --- FORM UPLOAD FILE MỚI ---
+    with st.expander("📤 Upload tài liệu mới (Word, Excel, PPT, PDF, Ảnh...)", expanded=False):
+        with st.form(key=f"upload_form_{section_name}", clear_on_submit=True):
+            uploaded_file = st.file_uploader("Chọn file tài liệu:", type=["pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt", "png", "jpg", "jpeg"])
+            uploader_name = st.text_input("Tên người upload (Uploader):", value="Admin")
+            description = st.text_area("Mô tả nội dung tài liệu:")
+            
+            submitted = st.form_submit_button("Tải lên và Lưu")
+            if submitted and uploaded_file is not None:
+                file_path = os.path.join(upload_dir, uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                new_row = {
+                    "File Name": uploaded_file.name,
+                    "Original Name": uploaded_file.name,
+                    "Uploader": uploader_name,
+                    "Upload Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "Description": description,
+                    "File Type": uploaded_file.name.split('.')[-1].upper()
+                }
+                
+                df_meta = pd.concat([df_meta, pd.DataFrame([new_row])], ignore_index=True)
+                df_meta.to_csv(meta_csv, index=False)
+                st.success(f"✅ Đã upload thành công file: {uploaded_file.name}")
+                st.rerun()
+
+    st.markdown("---")
+    st.markdown("### 📚 Thư viện tài liệu hiện có")
+    
+    if df_meta.empty:
+        st.info("ℹ Chưa có tài liệu nào được tải lên trong mục này.")
+    else:
+        for idx, row in df_meta.iterrows():
+            with st.container():
+                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 2, 1])
+                with col1:
+                    st.markdown(f"**📄 {row['File Name']}**")
+                    if pd.notna(row['Description']) and str(row['Description']).strip() != "":
+                        st.caption(f"Mô tả: {row['Description']}")
+                with col2:
+                    st.text(f"👤 {row['Uploader']}")
+                with col3:
+                    st.text(f"📅 {row['Upload Date']}")
+                with col4:
+                    file_path = os.path.join(upload_dir, row['File Name'])
+                    file_ext = str(row['File Type']).lower()
+                    
+                    # Nút bấm Xem trước nếu là PDF hoặc Ảnh
+                    if file_ext in ['pdf', 'png', 'jpg', 'jpeg']:
+                        if st.button("👁 Xem", key=f"preview_{section_name}_{idx}"):
+                            st.session_state[f"show_preview_{section_name}_{idx}"] = not st.session_state.get(f"show_preview_{section_name}_{idx}", False)
+                    
+                    if os.path.exists(file_path):
+                        with open(file_path, "rb") as f:
+                            st.download_button(
+                                label="⬇ Tải",
+                                data=f,
+                                file_name=row['File Name'],
+                                key=f"download_{section_name}_{idx}"
+                            )
+                with col5:
+                    if st.button("🗑 Xóa", key=f"delete_{section_name}_{idx}"):
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        df_meta = df_meta.drop(idx).reset_index(drop=True)
+                        df_meta.to_csv(meta_csv, index=False)
+                        st.success("Đã xóa file thành công!")
+                        st.rerun()
+                
+                # Hiển thị nội dung xem trước trực tiếp khi người dùng bấm nút "Xem"
+                if st.session_state.get(f"show_preview_{section_name}_{idx}", False):
+                    with st.expander(f"🔎 Xem trước trực tiếp: {row['File Name']}", expanded=True):
+                        if file_ext == 'pdf':
+                            show_pdf_preview(file_path)
+                        elif file_ext in ['png', 'jpg', 'jpeg']:
+                            st.image(file_path, caption=row['File Name'], use_container_width=True)
+                
+                st.divider()
 # ---------------------------------------------------------
 # THANH ĐIỀU HƯỚNG SIDEBAR
 # ---------------------------------------------------------
@@ -86,32 +195,38 @@ menu = st.sidebar.radio(
         "Cantilever", 
         "Vertical", 
         "Hokko", 
+        "PCA Productivity",
         "Tài liệu & Tra cứu"
     ]
 )
 
-def render_sub_menu(category_name):
+def render_sub_menu(category_name, options):
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"📁 **Thư mục con ({category_name}):**")
     sub_choice = st.sidebar.radio(
         "Chọn nội dung:",
-        [
-            "1. Thiết bị & Hình ảnh",
-            "2. Flowchart (Quy trình)",
-            "3. WI (Work Instruction)",
-            "4. DOC (Tài liệu)",
-            "5. Special Note (Lưu ý đặc biệt)"
-        ],
+        options,
         key=f"sub_{category_name}"
     )
     return sub_choice
 
 sub_menu = None
 if menu in ["Cantilever", "Vertical", "Hokko"]:
-    sub_menu = render_sub_menu(menu)
+    sub_menu = render_sub_menu(menu, [
+        "1. Thiết bị & Hình ảnh",
+        "2. Flowchart (Quy trình)",
+        "3. WI (Work Instruction)",
+        "4. DOC (Tài liệu)",
+        "5. Special Note (Lưu ý đặc biệt)"
+    ])
+elif menu == "PCA Productivity":
+    sub_menu = render_sub_menu(menu, [
+        "PCA Cant Productivity",
+        "PCA Vert Productivity"
+    ])
 
 st.sidebar.markdown("---")
-st.sidebar.info("📌 **Phiên bản:** 1.6.0 \n📅 **Cập nhật:** 2026 \n🏢 **Phòng Kỹ thuật PCA**")
+st.sidebar.info("📌 **Phiên bản:** 1.0.0 \n📅 **Cập nhật:** 2026 \n🏢 **PCA Department**")
 
 # ---------------------------------------------------------
 # NỘI DUNG CÁC TRANG
@@ -132,8 +247,11 @@ if menu == "Trang chủ & Giới thiệu":
         st.markdown("### ⚙️ Hokko")
         st.write("Dòng sản phẩm cơ khí chính xác, linh kiện lắp ráp nhanh.")
 
+# 1.1. PCA SYSTEMS CHI TIẾT (CÓ CHỌN VÀ HIỆN ẢNH)
 elif menu == "PCA Systems (Chi tiết)":
     st.markdown('<div class="main-header">Danh mục PCA Systems & Hình ảnh thiết bị</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Chọn hệ thống bên dưới để xem hình ảnh thực tế và thông tin chi tiết</div>', unsafe_allow_html=True)
+    
     system_choice = st.selectbox(
         "🔍 Chọn hệ thống PCA System cần xem:",
         [
@@ -144,27 +262,216 @@ elif menu == "PCA Systems (Chi tiết)":
             "5. ADCMT 5450 System"
         ]
     )
+    
     st.markdown("---")
+    
     col_img, col_info = st.columns([1, 1])
+    
     with col_img:
         st.subheader("📷 Hình ảnh / Sơ đồ kỹ thuật")
-        st.info(f"🖼️ Đang hiển thị thông tin: **{system_choice}**")
+        if "PRVX4" in system_choice:
+            if os.path.exists("prvx4.png"):
+                st.image("prvx4.png", caption="PRVX4 System", use_container_width=True)
+            else:
+                st.info("🖼️ Đang hiển thị sơ đồ minh họa: **PRVX4 System**")
+                st.warning("⚠️ Chưa tìm thấy file ảnh 'prvx4.png' trong thư mục. Vui lòng đặt file ảnh 'prvx4.png' cùng thư mục với app.")
+                st.code("PRVX4 System Blueprint & Structure Layout", language="text")
+        elif "PB6800" in system_choice:
+            if os.path.exists("pb6800.png"):
+                st.image("pb6800.png", caption="PB6800 System", use_container_width=True)
+            else:
+                st.info("🖼️ Đang hiển thị sơ đồ minh họa: **PB6800 System**")
+                st.code("PB6800 System Mechanical Layout", language="text")
+        elif "VX#3, VX#2 System" in system_choice:
+            if os.path.exists("VX#3.png"):
+                st.image("VX#3.png", caption="VX#3 System", use_container_width=True)
+            else:
+                st.info("🖼️ Đang hiển thị sơ đồ minh họa: **VX#3, VX#2 System**")
+                st.code("VX Series Architecture Layout", language="text")
+        elif "KT5000" in system_choice:
+            st.info("🖼️ Đang hiển thị sơ đồ minh họa: **KT / M Series System**")
+            st.code("KT5000 / KT6000 / M5050 / KT4000 Layout", language="text")
+        elif "ADCMT" in system_choice:
+            if os.path.exists("ADCMT.png"):
+                st.image("ADCMT.png", caption="ADCMT 5450 System", use_container_width=True)
+            else:
+                st.info("🖼️ Đang hiển thị sơ đồ minh họa: **ADCMT 5450 System**")
+                st.code("ADCMT 5450 Integration Scheme", language="text")
+            
     with col_info:
-        st.subheader("📋 Thông tin chi tiết")
-        st.write("Chọn hệ thống tương ứng để xem các thông số kỹ thuật chuẩn hóa.")
+        st.subheader("📋 Thông tin chi tiết & Thông số")
+        if "PRVX4" in system_choice:
+           with st.expander("🔬 PRVX4 System — Tổng quan thiết bị", expanded=True):
+            st.markdown("""
+    **PrecisionWoRx VX4 (PRVX4)** là hệ thống kiểm tra Probe Card độ chính xác cao,
+    hỗ trợ các probe tip nhỏ và pitch nhỏ, với khả năng kiểm tra tự động và xử lý hình ảnh độ phân giải cao.
+    """)
+            st.markdown("### ⚡ Các phép đo chính")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("⚡ **Leakage** \n📐 **Planarity**")
+            with col2:
+                st.markdown("🎯 **Alignment** \n🔌 **Contact Resistance**")
+            with col3:
+                st.markdown("💪 **Probe Force** \n🔗 **Wire Checker**")
+            
+            st.markdown("### 📏 Thông số & khả năng hỗ trợ")
+            st.markdown("""
+    | 🔧 Hạng mục | 📋 Thông số |
+    |:---|:---|
+    | 🔹 **Probe Tip Diameter** | **5 – 250 µm** |
+    | 💪 **Z-Axis Force** | **≤ 200 kg** |
+    | 🔢 **Probe Count** | **> 100,000 probes** |
+    | 🎯 **Direct Dock** | ✅ Hỗ trợ |
+    | 🔌 **Switching** | Relay / Solid-State |
+    | 🟦 **Membrane Probe Card** | ✅ Hỗ trợ |
+    """)
+            st.markdown("""
+    **🛡️ Tính năng nổi bật:** Advanced ESD Management, Automatic Probe Inspection,
+    hỗ trợ nhiều loại Check Plate và các công nghệ Probe Card phức tạp.
 
-elif menu == "Kiến thức chung":
-    st.markdown('<div class="main-header">Kiến thức chung & Tiêu chuẩn kỹ thuật</div>', unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["⚠️ Quy định an toàn", "🧱 Tiêu chuẩn vật liệu", "🛠️ Hướng dẫn lắp đặt"])
-    with tab1:
-        st.subheader("Quy định an toàn lao động khi thi công")
-        st.write("1. Luôn đeo nón bảo hộ, giày bảo hộ và dây an toàn.")
-    with tab2:
-        st.subheader("Tiêu chuẩn vật liệu thép & bề mặt")
-        st.write("- Sử dụng thép tiêu chuẩn SS400 / Q235B.")
-    with tab3:
-        st.subheader("Quy trình lắp đặt tổng quát")
-        st.write("- Khảo sát mặt bằng và kiểm tra cao độ sàn bê tông.")
+    **🏭 Thị trường:** CMOS Technology · Industrial
+    """)
+        elif "PB6800" in system_choice:
+            with st.expander("🔬 PB6800 — Tổng quan thiết bị", expanded=True):
+                st.markdown("""
+    **PB6800** là hệ thống phân tích và kiểm tra Probe Card của
+    **Probilt / Integrated Technology Corporation (ITC)**, được thiết kế
+    cho nhà sản xuất và trung tâm sửa chữa Probe Card.
+
+    Thiết bị hỗ trợ đo nhanh, chính xác và có độ lặp lại cao đối với nhiều
+    loại Probe Card.
+    """)
+                st.markdown("### ⚡ Các phép đo chính")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown(
+            "⚡ **Leakage** \n"
+            "🎯 **Alignment** \n"
+            "📐 **Planarity** \n"
+            "🔌 **Contact Resistance**"
+        )
+                with col2:
+                    st.markdown(
+            "💪 **Gram Force** \n"
+            "🔍 **Tip Diameter** \n"
+            "📏 **Tip Depth** \n"
+            "🧹 **Scrub Analysis**"
+        )
+                with col3:
+                    st.markdown(
+            "🔗 **Wire Check** \n"
+            "⚡ **OD Leakage** \n"
+            "🔋 **Capacitor Leakage** \n"
+            "🔧 **Relay / Resistor Test**"
+        )
+                st.markdown("### 📏 Thông số chính")
+                st.markdown("""
+    | 🔧 Hạng mục | 📋 Thông số |
+    |:---|:---|
+    | 🟢 **Chuck** | **12 inch** |
+    | 📐 **Probe Array** | **≤ 300 mm** |
+    | 🔌 **Channels** | **≤ 12,000 channels** |
+    | 🎯 **Encoder Resolution** | **0.1 µm** |
+    | ↔️ **XY Travel** | **12" × 8"** |
+    | 💪 **Z-Axis Force** | **300 kg** |
+    | ↕️ **Z Travel** | **0.75 inch** |
+    | ⚡ **PMU** | **16-bit Precision Measurement Unit** |
+    | 💻 **OS** | **Windows 10** |
+    | 🖥️ **CPU** | **Intel Core i7** |
+    """)
+                st.markdown("""
+    **🧪 Kiểm tra linh kiện tích hợp:** Relay · Capacitor · Resistor
+
+    **🎯 Ứng dụng chính:** Probe Card Manufacturing · Probe Card Repair ·
+    Electrical & Mechanical Characterization
+    """)
+        elif "VX#3" in system_choice:
+            with st.expander("🔬 PRVX3 System — Tổng quan thiết bị", expanded=True):
+                st.markdown("""
+        **PRVX3** là thế hệ trước của **PRVX4**, thuộc dòng PrecisionWoRx,
+        được sử dụng để kiểm tra và phân tích Probe Card trong sản xuất
+        bán dẫn và sau quá trình repair.
+
+        Hệ thống tập trung đánh giá **tình trạng cơ khí và điện** của Probe Card,
+        đồng thời sử dụng hệ thống quang học và xử lý ảnh để giảm ảnh hưởng
+        của người vận hành.
+        """)
+                st.markdown("### ⚡ Các phép đo chính")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown(
+                "🎯 **Alignment** \n"
+                "📐 **Planarity** \n"
+                "🔌 **Contact Resistance**"
+            )
+                with col2:
+                    st.markdown(
+                "⚡ **Leakage** \n"
+                "💪 **Probe Force** \n"
+                "🔗 **Wire Check**"
+            )
+                with col3:
+                    st.markdown(
+                "📍 **Needle Position** \n"
+                "🔍 **Probe Inspection** \n"
+                "🔢 **High Pin Count**"
+            )
+                st.markdown("### 🛠️ Chức năng kiểm tra")
+                st.markdown("""
+        | 🔧 Chức năng | 📋 Nội dung |
+        |:---|:---|
+        | 🎯 **Alignment** | Đo tọa độ X-Y, so sánh Golden Data, phát hiện kim lệch/cong/dịch chuyển |
+        | 📐 **Planarity** | Đo độ cao Z, xác định probe cao/thấp bất thường |
+        | 🔌 **Contact Resistance** | Kiểm tra điện trở tiếp xúc, phát hiện probe bẩn/oxy hóa/hư hỏng |
+        | ⚡ **Leakage Test** | Kiểm tra rò điện giữa các kênh, phát hiện short/contamination |
+        | 💪 **Probe Force** | Đo lực tác động của probe, đặc biệt quan trọng với Vertical Probe Card |
+        """)
+                st.markdown("### 📷 Hệ thống quang học")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown("📷 **High-Resolution Camera**")
+                with col2:
+                    st.markdown("🔬 **Electronic Zoom Microscope**")
+                with col3:
+                    st.markdown("🤖 **Image Processing**")
+                st.markdown("""
+        Hệ thống hỗ trợ nhận dạng probe, tự động đo **tọa độ và hình dạng đầu kim**,
+        giúp tăng độ chính xác và giảm ảnh hưởng của người vận hành.
+        """)
+                st.markdown("### 🧩 Probe Card hỗ trợ")
+                st.markdown("""
+        - 🟦 **Vertical Probe Card**
+        - 🟨 **Cantilever Probe Card**
+        - 🟩 **Membrane Probe Card**
+        - 🔌 **Probe Card có Relay**
+        - 🔢 **High Pin Count Probe Card**
+        """)
+        elif "KT5000" in system_choice:
+            st.write("- **Tên thiết bị:** KT5000, KT6000, M5050, KT4000 System")
+            st.write("- **Ứng dụng:** Nhóm hệ thống gia công và kiểm tra kỹ thuật đồng bộ.")
+            st.write("- **Đặc điểm kỹ thuật:** Độ chính xác cấp độ micromet, độ bền vượt trội trong môi trường nhà máy.")
+        elif "ADCMT" in system_choice:
+            st.write("- **Tên thiết bị:** ADCMT 5450 System (Ultra High Resistance Meter) là thiết bị đo điện trở siêu cao và dòng rò siêu nhỏ của hãng ADCMT (ADC Corporation - Japan). Thiết bị thường được dùng trong đánh giá vật liệu cách điện, PCB/PCA, tụ điện, bán dẫn, pin lithium và các thử nghiệm dòng rò.")
+            st.markdown("""
+### 🔬 Ứng dụng
+
+- ⚡ **Leakage Current** — Kiểm tra dòng rò giữa các net.
+- 📐 **Insulation Resistance** — Đo điện trở cách điện sau khi vệ sinh PCB.
+- 🧪 **Flux Residue** — Đánh giá ảnh hưởng của flux residue.
+- 🔌 **Relay / Connector** — Kiểm tra độ cách điện.
+- 🟩 **PCB Layer-to-Layer** — Đo điện trở cách điện giữa các lớp PCB.
+- 🔋 **Capacitor Test** — Thử nghiệm tụ điện: Electrolytic, MLCC, Film.
+- 🛠️ **Fixture / Test Jig** — Đánh giá vật liệu cách điện.
+
+### 📊 So sánh với Megger thông thường
+
+|  Thiết bị |  Giới hạn đo |
+|:---|---:|
+| 🔹 Megger | **TΩ (10¹² Ω)** |
+| 🔬 ADCMT 5450 | **3 × 10¹⁷ Ω** |
+| ⚡ Dòng đo nhỏ nhất | **1 fA** |
+""")
 
 # 3. CANTILEVER
 elif menu == "Cantilever":
@@ -177,6 +484,8 @@ elif menu == "Cantilever":
         with col2:
             st.write("- **Ứng dụng:** Lưu trữ ống thép, thanh nhôm, vật liệu dài.")
             st.write("- **Tải trọng:** 500kg - 2500kg mỗi tay đòn.")
+    # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Cant_Tools"
+        render_doc_library("Cant_Tools")
 
     elif sub_menu == "2. Flowchart (Quy trình)":
         st.markdown('<div class="main-header">Cantilever: Flowchart (Quy trình lắp đặt)</div>', unsafe_allow_html=True)
@@ -200,8 +509,8 @@ elif menu == "Cantilever":
         st.write("2. **WI-CAN-02:** Quy trình cố định bu-lông chân cột xuống nền bê tông.")
 
     elif sub_menu == "4. DOC (Tài liệu)":
-        st.markdown('<div class="main-header">Cantilever: Documentation (DOC)</div>', unsafe_allow_html=True)
-        st.download_button("📥 Tải Catalogue & Bản vẽ Cantilever (PDF)", data=b"Cantilever PDF", file_name="Cantilever_Catalogue.pdf")
+        # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Cantilever"
+        render_doc_library("Cantilever")
 
     elif sub_menu == "5. Special Note (Lưu ý đặc biệt)":
         st.markdown('<div class="main-header">Cantilever: Special Note & Bảng theo dõi chỉnh sửa</div>', unsafe_allow_html=True)
@@ -290,7 +599,27 @@ elif menu == "Vertical":
 
     elif sub_menu == "2. Flowchart (Quy trình)":
         st.markdown('<div class="main-header">Vertical: Flowchart (Quy trình lắp đặt)</div>', unsafe_allow_html=True)
-        st.code("Start -> Khảo sát vị trí -> Lắp khung đỡ đứng -> Chia ngăn phân cách -> Kiểm tra & Bàn giao", language="text")
+        tab1, tab2, tab3 = st.tabs(["1. PB System", "2. Quy trình cho card WST", "3. Kiểm tra & Bàn giao"])
+        with tab1:
+            st.subheader("Quy trình Cho PB System")
+            if os.path.exists("FC_PB System.png"):
+                st.image("FC_PB System.png", caption="Flow Chart PB System", width=1200)
+            else:
+                st.warning("⚠️ Chưa tìm thấy file ảnh 'FC_PB System.png'.")
+        with tab2:
+            st.subheader("Quy trình cho card WST")
+            st.markdown ("Apply từ today 8-Oct-26")
+            st.markdown ("""Apply : Cho tất cả dạng card WST
+               + Có Adjustable PIN và không có Adjustable PIN
+               + Có MBA và no MBA""")
+            
+            if os.path.exists("FC_Card WST.png"):
+                st.image("FC_Card WST.png", caption="Flow Chart card MST", width=1200)
+            else:
+                st.warning("⚠️ Chưa tìm thấy file ảnh 'FC_Card WST.png'.")
+        with tab3:
+            st.subheader("Quy trình nghiệm thu và bàn giao")
+            st.code("Test tải trọng -> Vệ sinh khu vực -> Lập biên bản nghiệm thu -> Bàn giao sử dụng", language="text")
 
     elif sub_menu == "3. WI (Work Instruction)":
         st.markdown('<div class="main-header">Vertical: Work Instruction (WI)</div>', unsafe_allow_html=True)
@@ -298,8 +627,8 @@ elif menu == "Vertical":
         st.write("2. **WI-VER-02:** Quy trình bố trí các thanh ngăn cách hàng.")
 
     elif sub_menu == "4. DOC (Tài liệu)":
-        st.markdown('<div class="main-header">Vertical: Documentation (DOC)</div>', unsafe_allow_html=True)
-        st.download_button("📥 Tải tài liệu kỹ thuật Vertical (PDF)", data=b"Vertical PDF", file_name="Vertical_Documentation.pdf")
+        # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Cantilever"
+        render_doc_library("Vertical")
 
     elif sub_menu == "5. Special Note (Lưu ý đặc biệt)":
         st.markdown('<div class="main-header">Vertical: Special Note & Bảng theo dõi chỉnh sửa</div>', unsafe_allow_html=True)
@@ -374,15 +703,20 @@ elif menu == "Vertical":
 # 5. HOKKO
 elif menu == "Hokko":
     if sub_menu == "1. Thiết bị & Hình ảnh":
-        st.markdown('<div class="main-header">Hokko: Thiết bị & Hình ảnh</div>', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info("🖼️ Hình ảnh linh kiện và phụ kiện kết cấu Hokko")
-            st.code("Hokko Precision Mechanical & Fast Assembly Components", language="text")
-        with col2:
-            st.write("- **Ứng dụng:** Linh kiện lắp ráp nhanh, khớp nối chuyên dụng.")
-            st.write("- **Đặc điểm:** Độ bền cao, kết cấu linh hoạt.")
-
+        st.markdown('<div class="main-header">Hokko: MBA and Cable</div>', unsafe_allow_html=True)
+        tab1, tab2, tab3 = st.tabs(["1. MB001-2.5inch", "2. MB53-10inch", "3. Kiểm tra & Bàn giao"])
+        with tab1:
+            st.subheader("MB001-2.5inch")
+            if os.path.exists("MB001-2.5inch.png"):
+                st.image("MB001-2.5inch.png", caption="MB001-2.5inch", width=1200)
+            else:
+                st.warning("⚠️ Chưa tìm thấy file ảnh 'MB001-2.5inch.png'.")
+        with tab2:
+            st.subheader("MB53-10inch")
+            st.image("MB53-10inch.png", caption="MB53-10inch", width=1200)
+        with tab3:
+            st.subheader("Quy trình nghiệm thu và bàn giao")
+            st.code("Test tải trọng -> Vệ sinh khu vực -> Lập biên bản nghiệm thu -> Bàn giao sử dụng", language="text")
     elif sub_menu == "2. Flowchart (Quy trình)":
         st.markdown('<div class="main-header">Hokko: Flowchart (Quy trình thao tác)</div>', unsafe_allow_html=True)
         st.code("Start -> Kiểm tra linh kiện -> Lắp khớp nối định vị -> Siết chặt khớp khóa -> Kiểm tra độ chắc chắn", language="text")
@@ -393,8 +727,8 @@ elif menu == "Hokko":
         st.write("2. **WI-HK-02:** Quy trình bảo dưỡng các khớp nối định hình.")
 
     elif sub_menu == "4. DOC (Tài liệu)":
-        st.markdown('<div class="main-header">Hokko: Documentation (DOC)</div>', unsafe_allow_html=True)
-        st.download_button("📥 Tải Catalogue Hokko 2026 (PDF)", data=b"Hokko PDF", file_name="Hokko_Catalogue_2026.pdf")
+         # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Hokko"
+        render_doc_library("Hokko")
 
     elif sub_menu == "5. Special Note (Lưu ý đặc biệt)":
         st.markdown('<div class="main-header">Hokko: Special Note & Bảng theo dõi chỉnh sửa</div>', unsafe_allow_html=True)
@@ -466,7 +800,120 @@ elif menu == "Hokko":
                 else:
                     st.warning("⚠️ Vui lòng điền đầy đủ thông tin các trường bắt buộc!")
 
-# 6. TÀI LIỆU & TRA CỨU
+# 6. PCA PRODUCTIVITY (Biểu đồ cột hiển thị theo từng Name/Nhân viên)
+elif menu == "PCA Productivity":
+    import plotly.express as px
+    
+    productivity_type = "Cant" if sub_menu == "PCA Cant Productivity" else "Vert"
+    csv_prod_file = f"pca_{productivity_type.lower()}_productivity.csv"
+    
+    st.markdown(f'<div class="main-header">PCA Productivity: {sub_menu}</div>', unsafe_allow_html=True)
+    
+    default_prod_data = {
+        "No": [1, 2, 3],
+        "Employee Code": ["1505004", "1604006", "1810001"],
+        "Name": ["Phan Đình Hùng", "Dương Tấn Đạt", "Ngô Quốc Khánh"],
+        "Code": ["Dhung", "Tdat", "Qkhanh"],
+        "Section": ["PCA", "PCA", "PCA"],
+        "Productivity (PCA Standard Card/Month)": [291, 201, 174],
+        "Productivity (PCA Standard Card/shift)": [8, 8, 7],
+        "Employee Utilization": [0.964, 0.983, 0.927],
+        "Mistake QTY": [0, 0, 0],
+        "Mistake Ratio": [0.008, 0.0, 0.0],
+        "Month": ["2026-08", "2026-08", "2026-08"]
+    }
+    
+    df_prod = load_table_data(csv_prod_file, default_prod_data)
+    
+    # Bộ lọc theo tháng
+    st.markdown("### 📅 Bộ lọc dữ liệu theo tháng")
+    all_months = sorted(df_prod["Month"].astype(str).unique().tolist()) if "Month" in df_prod.columns else ["2026-08"]
+    selected_months = st.multiselect("Chọn tháng xem dữ liệu (Bỏ trống để xem tất cả):", options=all_months, default=all_months)
+    
+    if selected_months:
+        df_filtered = df_prod[df_prod["Month"].astype(str).isin(selected_months)].copy()
+    else:
+        df_filtered = df_prod.copy()
+        
+    st.markdown("### 📋 Bảng dữ liệu năng suất (Có thể chỉnh sửa trực tiếp hoặc thêm dòng mới):")
+    
+    edited_prod_df = st.data_editor(
+        df_filtered, 
+        num_rows="dynamic", 
+        use_container_width=True, 
+        key=f"editor_prod_{productivity_type}",
+        column_config={
+            "Employee Utilization": st.column_config.NumberColumn(
+                "Employee Utilization",
+                help="Tỷ lệ sử dụng nhân viên",
+                format="%.1f%%"
+            ),
+            "Mistake Ratio": st.column_config.NumberColumn(
+                "Mistake Ratio",
+                help="Tỷ lệ lỗi",
+                format="%.2f%%"
+            )
+        }
+    )
+    
+    col_p1, _ = st.columns([1, 4])
+    with col_p1:
+        if st.button("💾 Lưu dữ liệu Năng suất", key=f"save_prod_{productivity_type}"):
+            save_table_data(csv_prod_file, edited_prod_df)
+            st.success("✅ Đã lưu dữ liệu năng suất vào CSV thành công!")
+            st.rerun()
+            
+    st.markdown("---")
+    st.markdown("### 📊 Biểu đồ thống kê theo từng nhân viên (Name)")
+    
+    if not edited_prod_df.empty:
+        # Chuyển đổi các cột số liệu sang kiểu số học để vẽ biểu đồ chính xác
+        chart_df = edited_prod_df.copy()
+        chart_df["Productivity (PCA Standard Card/Month)"] = pd.to_numeric(chart_df["Productivity (PCA Standard Card/Month)"], errors="coerce")
+        chart_df["Productivity (PCA Standard Card/shift)"] = pd.to_numeric(chart_df["Productivity (PCA Standard Card/shift)"], errors="coerce")
+        chart_df["Employee Utilization"] = pd.to_numeric(chart_df["Employee Utilization"], errors="coerce")
+        
+        # 1. Biểu đồ cột: Productivity theo Month / Name
+        fig1 = px.bar(
+                chart_df, x="Name", y="Productivity (PCA Standard Card/Month)",
+                color="Month" if len(all_months) > 1 else None,
+                barmode="group",
+                title="Productivity (PCA Standard Card/Month) theo Nhân viên",
+                text_auto=True,
+                template="plotly_dark"
+            )
+        fig1.update_layout(xaxis_title="Nhân viên (Name)", yaxis_title="Card/Month")
+        st.plotly_chart(fig1, use_container_width=True)
+            
+            # 2. Biểu đồ cột: Productivity per shift theo Name
+        fig2 = px.bar(
+                chart_df, x="Name", y="Productivity (PCA Standard Card/shift)",
+                color="Month" if len(all_months) > 1 else None,
+                barmode="group",
+                title="Productivity (PCA Standard Card/shift) theo Nhân viên",
+                text_auto=True,
+                template="plotly_dark"
+            )
+        fig2.update_layout(xaxis_title="Nhân viên (Name)", yaxis_title="Card/shift")
+        st.plotly_chart(fig2, use_container_width=True)
+            
+            # 3. Biểu đồ cột: Employee Utilization theo Name (Dùng update_yaxes đúng chuẩn)
+        fig3 = px.bar(
+                chart_df, x="Name", y="Employee Utilization",
+                color="Month" if len(all_months) > 1 else None,
+                barmode="group",
+                title="Employee Utilization theo Nhân viên",
+                text_auto=True,
+                template="plotly_dark"
+            )
+        fig3.update_layout(xaxis_title="Nhân viên (Name)", yaxis_title="Utilization")
+        fig3.update_yaxes(tickformat=',.0%')
+        st.plotly_chart(fig3, use_container_width=True)
+        
+    else:
+        st.info("ℹ Chưa có dữ liệu để hiển thị biểu đồ.")
+
+# 7. TÀI LIỆU & TRA CỨU
 elif menu == "Tài liệu & Tra cứu":
     st.markdown('<div class="main-header">Tra cứu tài liệu & Biểu mẫu</div>', unsafe_allow_html=True)
     st.write("Tải về các biểu mẫu bàn giao, biên bản nghiệm thu và bản vẽ kỹ thuật tham khảo.")
@@ -482,3 +929,5 @@ elif menu == "Tài liệu & Tra cứu":
         file_name="Catalogue_PCA_2026.pdf",
         mime="application/pdf"
     )
+    # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Tài liệu"
+    render_doc_library("Tài Liệu")
