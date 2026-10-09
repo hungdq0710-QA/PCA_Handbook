@@ -321,15 +321,15 @@ elif menu == "PCA Systems (Chi tiết)":
     with col_img:
         st.subheader("📷 Hình ảnh / Sơ đồ kỹ thuật")
         if "PRVX4" in system_choice:
-            if os.path.exists("prvx4.png"):
-                st.image("prvx4.png", caption="PRVX4 System", use_container_width=True)
+            if os.path.exists("PRVX4.png"):
+                st.image("PRVX4.png", caption="PRVX4 System", use_container_width=True)
             else:
                 st.info("🖼️ Đang hiển thị sơ đồ minh họa: **PRVX4 System**")
                 st.warning("⚠️ Chưa tìm thấy file ảnh 'prvx4.png' trong thư mục. Vui lòng đặt file ảnh 'prvx4.png' cùng thư mục với app.")
                 st.code("PRVX4 System Blueprint & Structure Layout", language="text")
         elif "PB6800" in system_choice:
-            if os.path.exists("pb6800.png"):
-                st.image("pb6800.png", caption="PB6800 System", use_container_width=True)
+            if os.path.exists("PB6800.png"):
+                st.image("PB6800.png", caption="PB6800 System", use_container_width=True)
             else:
                 st.info("🖼️ Đang hiển thị sơ đồ minh họa: **PB6800 System**")
                 st.code("PB6800 System Mechanical Layout", language="text")
