@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import base64
 from datetime import datetime
 
 st.set_page_config(
@@ -78,27 +77,47 @@ def render_file_preview_section(file_path, row, section_name, idx):
     
     if os.path.exists(file_path):
         if file_ext == 'pdf':
-            st.markdown(f"📄 **Tài liệu PDF:** `{row['File Name']}`")
-            
+            st.info(f"📄 **Tài liệu PDF:** {row['File Name']}")
+            st.caption("PDF được hiển thị theo từng trang ngay trong app. Dùng thanh phóng to/thu nhỏ và cuộn trang bên dưới để xem tài liệu.")
+
             with open(file_path, "rb") as f:
                 pdf_bytes = f.read()
-            
-            # Tạo nút mở trực tiếp PDF ở tab mới của trình duyệt (tránh bị chặn khung nhúng bên trong app)
-            b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-            pdf_href = f'<a href="data:application/pdf;base64,{b64_pdf}" target="_blank" style="text-decoration: none;"><button style="background-color: #00d2ff; color: #0f172a; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">🚀 Mở xem trực tiếp PDF ở Tab mới</button></a>'
-            st.markdown(pdf_href, unsafe_allow_html=True)
-            
-            st.markdown("") # Khoảng cách nhỏ
-            
-            # Nút tải xuống dự phòng
+
+            # Tránh iframe data:application/pdf vì một số phiên bản Edge chặn nội dung này.
+            # PyMuPDF chuyển từng trang thành ảnh để Streamlit hiển thị ổn định trong app.
+            try:
+                import fitz  # PyMuPDF
+
+                zoom = st.slider(
+                    "🔎 Phóng to / thu nhỏ PDF",
+                    min_value=0.75,
+                    max_value=2.5,
+                    value=1.25,
+                    step=0.25,
+                    key=f"pdf_zoom_{section_name}_{idx}"
+                )
+                pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                st.caption(f"Tổng số trang: {len(pdf_doc)}")
+                for page_num in range(len(pdf_doc)):
+                    page = pdf_doc.load_page(page_num)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+                    st.markdown(f"**Trang {page_num + 1} / {len(pdf_doc)}**")
+                    st.image(pix.tobytes("png"), use_container_width=True)
+                pdf_doc.close()
+            except ImportError:
+                st.error("Thiếu thư viện PyMuPDF nên chưa thể xem PDF trực tiếp. Hãy cài bằng lệnh: `pip install pymupdf`")
+            except Exception as e:
+                st.error(f"Không thể hiển thị PDF: {e}")
+
+            # Giữ nguyên tùy chọn tải file PDF về như chức năng cũ.
             st.download_button(
-                label="⬇ Tải file PDF về máy",
+                label="📥 Tải PDF",
                 data=pdf_bytes,
                 file_name=row['File Name'],
                 mime="application/pdf",
-                key=f"fallback_dl_{section_name}_{idx}"
+                key=f"download_pdf_safe_{section_name}_{idx}"
             )
-                
+
         elif file_ext in ['png', 'jpg', 'jpeg']:
             st.image(file_path, caption=row['File Name'], use_container_width=True)
             
