@@ -537,6 +537,111 @@ elif menu == "Cantilever":
             st.write("- **Tải trọng:** 500kg - 2500kg mỗi tay đòn.")
     # Gọi hàm quản lý Thư viện tài liệu với tên định danh là "Cant_Tools"
         render_doc_library("Cant_Tools")
+# --- QUẢN LÝ DANH SÁCH MBA (CÓ HÌNH ẢNH) ---
+        st.markdown("---")
+        st.markdown("### 📊 Quản lý danh sách MBA (Management Board Assembly)")
+        
+        mba_csv_file = "cantilever_mba_table.csv"
+        mba_img_dir = "uploads_mba_images"
+        os.makedirs(mba_img_dir, exist_ok=True)
+
+        mba_columns = [
+            "No.", "NAME", "Part Number", "MBA S/N", "Calib Date", 
+            "Next Calib Date", "PCB STYLE", "PROBE DEPTH", "POGO BLOCK", 
+            "TESTER NAME", "FL Card", "KEEP OUT (TOP DIAMETER)", "Picture"
+        ]
+        default_mba_data = [
+            [1, "MBA-01", "PN-CANT-01", "SN98765", "2026-01-15", "2027-01-15", "Standard", "1.5mm", "Block-A", "Tester 1", "Yes", "50mm", ""],
+            [2, "MBA-02", "PN-CANT-02", "SN98766", "2026-02-10", "2027-02-10", "Advanced", "1.8mm", "Block-B", "Tester 2", "No", "55mm", ""]
+        ]
+        
+        # Tải hoặc khởi tạo dữ liệu CSV cho MBA
+        df_mba = load_table_data(mba_csv_file, pd.DataFrame(default_mba_data, columns=mba_columns))
+        
+        # Đảm bảo có cột Picture nếu dùng file CSV cũ
+        if "Picture" not in df_mba.columns:
+            df_mba["Picture"] = ""
+
+        # Ô tìm kiếm tên MBA
+        mba_search = st.text_input("🔍 Tìm kiếm theo Tên MBA hoặc thông số khác:", key="search_mba_cantilever")
+
+        st.markdown("### 📋 Bảng danh sách MBA (Chỉnh sửa trực tiếp):")
+        edited_mba_df = st.data_editor(
+            df_mba, 
+            num_rows="dynamic", 
+            use_container_width=True, 
+            key="editor_mba_cantilever",
+            column_config={
+                "KEEP OUT (TOP DIAMETER)": st.column_config.TextColumn(
+                    "KEEP OUT (TOP DIAMETER)",
+                    help="Nhập giá trị đường kính giới hạn (vd: 50mm)"
+                )
+            }
+        )
+
+        col_b1, _ = st.columns([1, 4])
+        with col_b1:
+            if st.button("💾 Lưu thay đổi MBA", key="save_mba_btn"):
+                save_table_data(mba_csv_file, edited_mba_df)
+                st.success("✅ Đã lưu danh sách MBA vào file CSV thành công!")
+                st.rerun()
+
+        # --- PHẦN UPLOAD VÀ XEM ẢNH CHO TỪNG MBA ---
+        st.markdown("---")
+        st.markdown("### 🖼️ Quản lý hình ảnh chi tiết MBA")
+        
+        if not edited_mba_df.empty:
+            # Tạo danh sách tên MBA để chọn xem/upload ảnh
+            mba_names = edited_mba_df["NAME"].dropna().astype(str).tolist()
+            selected_mba_name = st.selectbox("📌 Chọn tên MBA để upload hoặc xem hình ảnh:", options=mba_names, key="select_mba_img")
+            
+            # Lọc dòng dữ liệu tương ứng với MBA được chọn
+            row_idx = edited_mba_df[edited_mba_df["NAME"].astype(str) == selected_mba_name].index
+            
+            if len(row_idx) > 0:
+                idx = row_idx[0]
+                current_img_name = str(edited_mba_df.loc[idx, "Picture"])
+                
+                col_img_up, col_img_view = st.columns(2)
+                
+                with col_img_up:
+                    st.markdown(f"**Tải ảnh lên cho MBA: `{selected_mba_name}`**")
+                    uploaded_img = st.file_uploader("Chọn file ảnh (PNG, JPG, JPEG):", type=["png", "jpg", "jpeg"], key=f"up_img_{selected_mba_name}")
+                    if uploaded_img is not None:
+                        clean_mba_name = selected_mba_name.strip().replace('\n', '').replace('\r', '')
+                        img_filename = f"{clean_mba_name}_{uploaded_img.name.strip()}"
+                        img_path = os.path.join(mba_img_dir, img_filename)
+                        with open(img_path, "wb") as f:
+                            f.write(uploaded_img.getbuffer())
+                        
+                        # Cập nhật tên file vào DataFrame
+                        edited_mba_df.loc[idx, "Picture"] = img_filename
+                        save_table_data(mba_csv_file, edited_mba_df)
+                        st.success(f"✅ Đã tải lên ảnh cho {selected_mba_name} thành công!")
+                        st.rerun()
+                
+                with col_img_view:
+                    st.markdown(f"**Hình ảnh hiện tại của: `{selected_mba_name}`**")
+                    if current_img_name and current_img_name != "nan" and current_img_name.strip() != "":
+                        target_img_path = os.path.join(mba_img_dir, current_img_name)
+                        if os.path.exists(target_img_path):
+                            st.image(target_img_path, caption=f"MBA: {selected_mba_name}", use_container_width=True)
+                        else:
+                            st.warning("⚠️ Không tìm thấy file ảnh thực tế trên thư mục.")
+                    else:
+                        st.info("ℹ MBA này chưa có hình ảnh được cập nhật.")
+
+        # --- TÌM KIẾM TÊN MBA ---
+        if mba_search.strip():
+            st.markdown("---")
+            st.markdown("### 🟢 Kết quả tìm kiếm MBA:")
+            mask_mba = edited_mba_df.astype(str).apply(lambda x: x.str.contains(mba_search, case=False, na=False)).any(axis=1)
+            filtered_mba_df = edited_mba_df[mask_mba]
+
+            if not filtered_mba_df.empty:
+                st.dataframe(filtered_mba_df, use_container_width=True)
+            else:
+                st.info("🔍 Không tìm thấy MBA phù hợp với từ khóa của bạn.")
 
     elif sub_menu == "2. Flowchart (Quy trình)":
         st.markdown('<div class="main-header">Cantilever: Flowchart (Quy trình lắp đặt)</div>', unsafe_allow_html=True)
