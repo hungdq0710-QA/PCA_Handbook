@@ -631,17 +631,22 @@ elif menu == "Cantilever":
                     else:
                         st.info("ℹ MBA này chưa có hình ảnh được cập nhật.")
 
-        # --- TÌM KIẾM TÊN MBA ---
+       # --- TÌM KIẾM MBA (ĐÃ TỐI ƯU AN TOÀN DỮ LIỆU) ---
         if mba_search.strip():
             st.markdown("---")
             st.markdown("### 🟢 Kết quả tìm kiếm MBA:")
-            mask_mba = edited_mba_df.astype(str).apply(lambda x: x.str.contains(mba_search, case=False, na=False)).any(axis=1)
+            
+            # Làm sạch dữ liệu, thay thế các giá trị NaN/None bằng chuỗi rỗng trước khi tìm kiếm
+            search_df = edited_mba_df.fillna("").astype(str)
+            
+            # Kiểm tra xem từ khóa có khớp với bất kỳ cột nào không
+            mask_mba = search_df.apply(lambda col: col.str.contains(mba_search.strip(), case=False, na=False)).any(axis=1)
             filtered_mba_df = edited_mba_df[mask_mba]
 
             if not filtered_mba_df.empty:
                 st.dataframe(filtered_mba_df, use_container_width=True)
             else:
-                st.info("🔍 Không tìm thấy MBA phù hợp với từ khóa của bạn.")
+                st.info(f"🔍 Không tìm thấy MBA nào phù hợp với từ khóa: **'{mba_search}'**")
 
     elif sub_menu == "2. Flowchart (Quy trình)":
         st.markdown('<div class="main-header">Cantilever: Flowchart (Quy trình lắp đặt)</div>', unsafe_allow_html=True)
